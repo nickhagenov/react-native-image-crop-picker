@@ -463,7 +463,7 @@ RCT_EXPORT_METHOD(openPicker:(NSDictionary *)options
     if ([[[self options] objectForKey:@"cropping"] boolValue]) {
         RSKImageCropViewController *imageCropVC = [[RSKImageCropViewController alloc] initWithImage:image cropMode:RSKImageCropModeCustom];
 
-        imageCropVC.avoidEmptySpaceAroundImage = YES;
+        imageCropVC.avoidEmptySpaceAroundImage = NO;
         imageCropVC.dataSource = self;
         imageCropVC.delegate = self;
 
