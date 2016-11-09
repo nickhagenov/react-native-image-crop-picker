@@ -110,6 +110,8 @@
 
 -(UIImage*)resizedImageToFitInSize:(CGSize)boundingSize scaleIfSmaller:(BOOL)scale
 {
+	// do not resize images by scaling, only crop it.
+	return self; 
 	// get the image size (independant of imageOrientation)
 	CGImageRef imgRef = self.CGImage;
 	CGSize srcSize = CGSizeMake(CGImageGetWidth(imgRef), CGImageGetHeight(imgRef)); // not equivalent to self.size (which depends on the imageOrientation)!
