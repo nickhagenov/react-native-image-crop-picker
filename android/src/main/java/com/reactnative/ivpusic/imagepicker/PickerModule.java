@@ -1,20 +1,23 @@
 package com.reactnative.ivpusic.imagepicker;
 
+import android.Manifest;
 import android.app.Activity;
 import android.content.ClipData;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Color;
 import android.media.MediaMetadataRetriever;
 import android.net.Uri;
 import android.os.Build;
+import android.os.Environment;
 import android.provider.MediaStore;
+import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.FileProvider;
 import android.util.Base64;
-import android.Manifest;
-import android.os.Environment;
+import android.webkit.MimeTypeMap;
 
-import com.facebook.react.ReactActivity;
 import com.facebook.react.bridge.ActivityEventListener;
 import com.facebook.react.bridge.Promise;
 import com.facebook.react.bridge.ReactApplicationContext;
@@ -25,21 +28,20 @@ import com.facebook.react.bridge.WritableArray;
 import com.facebook.react.bridge.WritableMap;
 import com.facebook.react.bridge.WritableNativeArray;
 import com.facebook.react.bridge.WritableNativeMap;
-
-import android.support.v4.app.ActivityCompat;
-import android.content.pm.PackageManager;
-import android.webkit.MimeTypeMap;
-
+import com.facebook.react.modules.core.PermissionAwareActivity;
 import com.facebook.react.modules.core.PermissionListener;
 import com.yalantis.ucrop.UCrop;
 
-import java.io.File;
-import java.util.*;
-import java.io.InputStream;
-import java.io.FileNotFoundException;
-import java.io.FileInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.Callable;
 
 class PickerModule extends ReactContextBaseJavaModule implements ActivityEventListener {
@@ -65,6 +67,15 @@ class PickerModule extends ReactContextBaseJavaModule implements ActivityEventLi
     private boolean cropping = false;
     private boolean multiple = false;
     private boolean includeBase64 = false;
+
+    //Default colors from from https://material.google.com/style/color.html#
+
+    //Grey 800
+    private final String DEFAULT_TINT = "#424242";
+    private String cropperTintColor = DEFAULT_TINT;
+
+    //Light Blue 500
+    private final String DEFAULT_WIDGET_COLOR = "#03A9F4";
     private int width = 200;
     private int height = 200;
     private final ReactApplicationContext mReactContext;
@@ -95,6 +106,8 @@ class PickerModule extends ReactContextBaseJavaModule implements ActivityEventLi
         width = options.hasKey("width") ? options.getInt("width") : width;
         height = options.hasKey("height") ? options.getInt("height") : height;
         cropping = options.hasKey("cropping") ? options.getBoolean("cropping") : cropping;
+        cropperTintColor = options.hasKey("cropperTintColor") ? options.getString("cropperTintColor") : cropperTintColor;
+
     }
 
     private void deleteRecursive(File fileOrDirectory) {
@@ -190,7 +203,7 @@ class PickerModule extends ReactContextBaseJavaModule implements ActivityEventLi
 
         if (!missingPermissions.isEmpty()) {
 
-            ((ReactActivity) activity).requestPermissions(missingPermissions.toArray(new String[missingPermissions.size()]), 1, new PermissionListener() {
+            ((PermissionAwareActivity) activity).requestPermissions(missingPermissions.toArray(new String[missingPermissions.size()]), 1, new PermissionListener() {
 
                 @Override
                 public boolean onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
@@ -315,7 +328,7 @@ class PickerModule extends ReactContextBaseJavaModule implements ActivityEventLi
         setConfiguration(options);
         mPickerPromise = promise;
 
-        permissionsCheck(activity, promise, Arrays.asList(Manifest.permission.WRITE_EXTERNAL_STORAGE, Manifest.permission.READ_EXTERNAL_STORAGE), new Callable<Void>() {
+        permissionsCheck(activity, promise, Arrays.asList(Manifest.permission.WRITE_EXTERNAL_STORAGE), new Callable<Void>() {
             @Override
             public Void call() throws Exception {
                 initiatePicker(activity);
@@ -440,9 +453,27 @@ class PickerModule extends ReactContextBaseJavaModule implements ActivityEventLi
         return image;
     }
 
+    private void configureCropperColors(UCrop.Options options) {
+        int color = Color.parseColor(cropperTintColor);
+        options.setToolbarColor(color);
+        options.setStatusBarColor(color);
+        if (cropperTintColor.equals(DEFAULT_TINT)) {
+            /*
+            Default tint is grey => use a more flashy color that stands out more as the call to action
+            Here we use 'Light Blue 500' from https://material.google.com/style/color.html#color-color-palette
+            */
+            options.setActiveWidgetColor(Color.parseColor(DEFAULT_WIDGET_COLOR));
+        } else {
+            //If they pass a custom tint color in, we use this for everything
+            options.setActiveWidgetColor(color);
+        }
+
+    }
+
     private void startCropping(Activity activity, Uri uri) {
         UCrop.Options options = new UCrop.Options();
         options.setCompressionFormat(Bitmap.CompressFormat.JPEG);
+        configureCropperColors(options);
 
         UCrop.of(uri, Uri.fromFile(new File(this.getTmpDir(), UUID.randomUUID().toString() + ".jpg")))
                 .withMaxResultSize(width, height)
@@ -526,7 +557,7 @@ class PickerModule extends ReactContextBaseJavaModule implements ActivityEventLi
             }
         }
     }
-    
+
     private void croppingResult(Activity activity, final int requestCode, final int resultCode, final Intent data) {
         if (mPickerPromise == null) {
             return;
